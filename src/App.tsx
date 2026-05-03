@@ -5,110 +5,11 @@
 
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useRef, useState, useMemo } from "react";
-import { Canvas, useFrame, extend } from "@react-three/fiber";
-import { Sphere, OrbitControls, Stars, Float, PerspectiveCamera, Text } from "@react-three/drei";
-import * as THREE from "three";
 import { complex, multiply, matrix, abs, pow, arg } from "mathjs";
 import { MessageSquare, X, Send, Loader2, Zap, Info } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 import Markdown from "react-markdown";
 import LoadingScreen from "./components/LoadingScreen";
-
-declare module '@react-three/fiber' {
-  interface ThreeElements {
-    blochParticleMaterial: any;
-  }
-}
-
-// Custom Shader for the Bloch Sphere Particles
-class BlochParticleMaterial extends THREE.ShaderMaterial {
-  constructor() {
-    super({
-      uniforms: {
-        uTime: { value: 0 },
-        uHover: { value: 0 },
-        uImpact: { value: 0 },
-        uMouse: { value: new THREE.Vector2(0, 0) },
-        uColorA: { value: new THREE.Color("#00e5ff") },  // teal
-        uColorB: { value: new THREE.Color("#ffd700") },  // gold
-        uColorC: { value: new THREE.Color("#4fc3f7") },  // light blue
-      },
-      vertexShader: `
-        varying vec3 vColor;
-        varying float vOpacity;
-        uniform float uTime;
-        uniform float uHover;
-        uniform float uImpact;
-        uniform vec2 uMouse;
-        uniform vec3 uColorA;
-        uniform vec3 uColorB;
-        uniform vec3 uColorC;
-
-        float hash(float n) { return fract(sin(n) * 43758.5453123); }
-        float noise(vec3 x) {
-          vec3 p = floor(x);
-          vec3 f = fract(x);
-          f = f*f*(3.0-2.0*f);
-          float n = p.x + p.y*57.0 + 113.0*p.z;
-          return mix(
-            mix(mix(hash(n),hash(n+1.0),f.x), mix(hash(n+57.0),hash(n+58.0),f.x),f.y),
-            mix(mix(hash(n+113.0),hash(n+114.0),f.x), mix(hash(n+170.0),hash(n+171.0),f.x),f.y),
-            f.z
-          );
-        }
-
-        void main() {
-          vec3 pos = position;
-          float n = noise(pos * 2.0 + uTime * 0.3);
-          n += noise(pos * 4.0 - uTime * 0.15) * 0.5;
-
-          float breathing = sin(uTime * 1.8) * 0.06;
-          float distToMouse = distance(uMouse, vec2(pos.x, pos.y) * 0.5);
-          float ripple = sin(distToMouse * 12.0 - uTime * 6.0) * 0.08 * exp(-distToMouse * 2.5);
-          float impact = sin(length(pos) * 8.0 - uTime * 14.0) * uImpact * 0.6;
-
-          pos += normalize(pos) * (n * 0.12 + breathing + ripple + uHover * 0.2 + impact);
-
-          float angle = uTime * 0.12 + n * 0.4;
-          float s = sin(angle); float c = cos(angle);
-          pos.xz = mat2(c, -s, s, c) * pos.xz;
-
-          vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-          float size = 0.035 * (1.0 + uHover * 1.5 + n * 0.6 + uImpact * 2.0);
-          gl_PointSize = size * (1200.0 / -mvPosition.z);
-          gl_Position = projectionMatrix * mvPosition;
-
-          // Teal at top, gold at equator, blue at bottom
-          float yNorm = clamp(pos.y / 2.0 + 0.5, 0.0, 1.0);
-          vec3 col = mix(uColorC, uColorA, yNorm);
-          col = mix(col, uColorB, pow(1.0 - abs(pos.y / 1.8), 3.0) * 0.7);
-          col += n * 0.3 * uColorA;
-          vColor = col + uImpact * uColorB * 0.5;
-
-          float fresnel = pow(1.0 - abs(dot(normalize(pos), vec3(0.0,0.0,1.0))), 1.5);
-          vOpacity = (0.4 + n * 0.7 + uHover * 0.5 + uImpact * 0.8 + fresnel * 0.6)
-                     * (1.0 - smoothstep(1.7, 2.4, length(pos)));
-        }
-      `,
-      fragmentShader: `
-        varying vec3 vColor;
-        varying float vOpacity;
-        void main() {
-          float dist = distance(gl_PointCoord, vec2(0.5));
-          if (dist > 0.5) discard;
-          float alpha = pow(1.0 - dist * 2.0, 2.5) * vOpacity;
-          float core = pow(max(0.0, 1.0 - dist * 3.5), 4.0) * vOpacity * 2.5;
-          gl_FragColor = vec4(vColor + core * 0.6, alpha + core);
-        }
-      `,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-  }
-}
-
-extend({ BlochParticleMaterial });
 
 type Page = "home" | "about" | "simulator";
 type SimulationMode = "learning" | "explore";
@@ -159,11 +60,7 @@ function AppContent() {
   return (
     <div className="relative min-h-screen bg-bg text-text font-sans selection:bg-primary selection:text-black flex flex-col overflow-hidden">
       {/* Background Animation Layer */}
-      <div className="fixed inset-0 z-0 pointer-events-none opacity-40">
-        <Canvas>
-          <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade speed={1} />
-        </Canvas>
-      </div>
+      <div className="fixed inset-0 z-0 pointer-events-none opacity-40 bg-black" />
 
       {/* Navbar (Top) */}
       <nav className="absolute top-0 left-0 right-0 z-50 flex justify-between items-center px-8 md:px-16 py-8 bg-transparent">
@@ -180,13 +77,13 @@ function AppContent() {
               onClick={() => setCurrentPage("simulator")}
               className={`transition-all hover:text-primary relative group ${currentPage === "simulator" ? "text-primary text-glow-orange" : "text-text/80"}`}
             >
-              SIMULATOR
+              SIMULATOR 
             </button>
             <button
               onClick={() => setCurrentPage("about")}
               className={`transition-all hover:text-primary relative group ${currentPage === "about" ? "text-primary text-glow-orange" : "text-text/80"}`}
             >
-              ABOUT
+              ABOUTING
             </button>
           </div>
         </div>
@@ -244,7 +141,7 @@ function HomePage({ onNavigate }: { onNavigate: () => void }) {
           className="flex flex-col items-start max-w-xl"
         >
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-sans font-black tracking-tighter uppercase leading-[0.85] text-primary drop-shadow-[0_0_30px_rgba(255,140,42,0.3)]">
-            QUANTUM //<br />VISUAL<br />SIMULATOR
+            QUANTUM <br />VISUAL<br />SIMULATOR
           </h1>
           <p className="text-sm font-light leading-relaxed tracking-wide text-text/70 mt-8 max-w-sm">
             An interactive system to visualize qubit evolution using Bloch sphere, quantum gates, and real-time probability updates.
@@ -530,21 +427,8 @@ function SimulatorPage() {
             </div>
           )}
 
-          <div className="w-full h-full cursor-move">
-            <Canvas shadows dpr={[1, 2]}>
-              <PerspectiveCamera makeDefault position={[0, 0, 9]} />
-              <ambientLight intensity={0.15} />
-              <pointLight position={[0, 8, 4]} intensity={2} color="#00e5ff" />
-              <pointLight position={[0, -8, -4]} intensity={1.5} color="#4fc3f7" />
-              <pointLight position={[6, 0, 6]} intensity={1} color="#ffd700" />
-              <fog attach="fog" args={["#000010", 8, 25]} />
-
-              {vizMode === "bloch" && <BlochSphere state={state} />}
-              {vizMode === "wave" && <WaveVisualization state={state} />}
-              {vizMode === "plane" && <PlaneVisualization state={state} />}
-
-              <OrbitControls enableZoom={false} enablePan={false} rotateSpeed={0.5} dampingFactor={0.05} enableDamping />
-            </Canvas>
+          <div className="w-full h-full flex items-center justify-center">
+            <BlochSphere state={state} />
           </div>
 
           {/* Preset Buttons Overlay */}
@@ -712,174 +596,6 @@ function PresetButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
-function WaveVisualization({ state }: { state: QubitState }) {
-  const prob0 = pow(abs(state.alpha), 2) as number;
-  const prob1 = pow(abs(state.beta), 2) as number;
-  const barRef0 = useRef<THREE.Mesh>(null);
-  const barRef1 = useRef<THREE.Mesh>(null);
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    if (barRef0.current) {
-      (barRef0.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.5 + Math.sin(t * 3) * 0.5;
-    }
-    if (barRef1.current) {
-      (barRef1.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.5 + Math.sin(t * 3 + Math.PI) * 0.5;
-    }
-  });
-
-  const maxH = 2.5;
-  const h0 = Math.max(0.05, prob0 * maxH);
-  const h1 = Math.max(0.05, prob1 * maxH);
-  const baseY = -1.5;
-
-  return (
-    <group>
-      {/* Grid floor */}
-      <gridHelper args={[6, 12, 0x1a3a4a, 0x0d1f26]} position={[0, baseY, 0]} />
-
-      {/* Glowing floor plane */}
-      <mesh position={[0, baseY - 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[6, 6]} />
-        <meshBasicMaterial color="#000c14" transparent opacity={0.8} />
-      </mesh>
-
-      {/* Bar |0⟩ */}
-      <mesh ref={barRef0} position={[-1.2, baseY + h0 / 2, 0]}>
-        <boxGeometry args={[0.7, h0, 0.7]} />
-        <meshStandardMaterial color="#ff8c2a" emissive="#ff8c2a" emissiveIntensity={1.5} transparent opacity={0.85} />
-      </mesh>
-      {/* Bar |0⟩ glow base */}
-      <mesh position={[-1.2, baseY, 0]}>
-        <boxGeometry args={[0.9, 0.04, 0.9]} />
-        <meshBasicMaterial color="#ff8c2a" transparent opacity={0.4} />
-      </mesh>
-      <Text position={[-1.2, baseY - 0.3, 0]} fontSize={0.22} color="#ff8c2a" anchorX="center">|0⟩</Text>
-      <Text position={[-1.2, baseY - 0.55, 0]} fontSize={0.14} color="#ff8c2a" anchorX="center">{(prob0 * 100).toFixed(1)}%</Text>
-
-      {/* Bar |1⟩ */}
-      <mesh ref={barRef1} position={[1.2, baseY + h1 / 2, 0]}>
-        <boxGeometry args={[0.7, h1, 0.7]} />
-        <meshStandardMaterial color="#4cc9f0" emissive="#4cc9f0" emissiveIntensity={1.5} transparent opacity={0.85} />
-      </mesh>
-      {/* Bar |1⟩ glow base */}
-      <mesh position={[1.2, baseY, 0]}>
-        <boxGeometry args={[0.9, 0.04, 0.9]} />
-        <meshBasicMaterial color="#4cc9f0" transparent opacity={0.4} />
-      </mesh>
-      <Text position={[1.2, baseY - 0.3, 0]} fontSize={0.22} color="#4cc9f0" anchorX="center">|1⟩</Text>
-      <Text position={[1.2, baseY - 0.55, 0]} fontSize={0.14} color="#4cc9f0" anchorX="center">{(prob1 * 100).toFixed(1)}%</Text>
-
-      {/* Connecting line */}
-      <mesh position={[0, baseY + Math.max(h0, h1) + 0.1, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.008, 0.008, 2.4, 6]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.08} />
-      </mesh>
-
-      {/* Axis label */}
-      <Text position={[0, baseY + maxH + 0.4, 0]} fontSize={0.14} color="#ffffff" anchorX="center" fillOpacity={0.3}>
-        PROBABILITY AMPLITUDE
-      </Text>
-    </group>
-  );
-}
-
-function PlaneVisualization({ state }: { state: QubitState }) {
-  const alphaLen = abs(state.alpha) as number;
-  const betaLen = abs(state.beta) as number;
-  const alphaAngle = arg(state.alpha) as number;
-  const betaAngle = arg(state.beta) as number;
-
-  const alphaGroupRef = useRef<THREE.Group>(null);
-  const betaGroupRef = useRef<THREE.Group>(null);
-  const ringRef = useRef<THREE.Mesh>(null);
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    if (ringRef.current) {
-      (ringRef.current.material as THREE.MeshBasicMaterial).opacity = 0.15 + Math.sin(t * 1.2) * 0.05;
-    }
-    if (alphaGroupRef.current) {
-      const s = 1 + Math.sin(t * 2.5) * 0.04;
-      alphaGroupRef.current.scale.set(s, s, s);
-    }
-    if (betaGroupRef.current) {
-      const s = 1 + Math.sin(t * 2.5 + Math.PI) * 0.04;
-      betaGroupRef.current.scale.set(s, s, s);
-    }
-  });
-
-  const gridR = 1.8;
-
-  return (
-    <group rotation={[Math.PI / 2, 0, 0]}>
-      {/* Unit circle */}
-      <mesh ref={ringRef}>
-        <torusGeometry args={[Math.max(0.01, alphaLen * gridR), 0.015, 8, 64]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.15} />
-      </mesh>
-
-      {/* Re and Im axes */}
-      <mesh>
-        <cylinderGeometry args={[0.008, 0.008, gridR * 2.4, 6]} />
-        <meshBasicMaterial color="#4cc9f0" transparent opacity={0.25} />
-      </mesh>
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.008, 0.008, gridR * 2.4, 6]} />
-        <meshBasicMaterial color="#4cc9f0" transparent opacity={0.25} />
-      </mesh>
-
-      {/* Alpha vector */}
-      <group ref={alphaGroupRef} rotation={[0, 0, alphaAngle]}>
-        <mesh position={[alphaLen * gridR * 0.5, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <cylinderGeometry args={[0.025, 0.025, alphaLen * gridR, 8]} />
-          <meshStandardMaterial color="#ff8c2a" emissive="#ff8c2a" emissiveIntensity={3} />
-        </mesh>
-        <mesh position={[alphaLen * gridR, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <coneGeometry args={[0.1, 0.25, 12]} />
-          <meshStandardMaterial color="#ff8c2a" emissive="#ff8c2a" emissiveIntensity={4} />
-        </mesh>
-        <pointLight position={[alphaLen * gridR, 0, 0]} intensity={3} distance={2} color="#ff8c2a" />
-      </group>
-      <Text
-        position={[Math.cos(alphaAngle) * (alphaLen * gridR + 0.5), Math.sin(alphaAngle) * (alphaLen * gridR + 0.5), 0]}
-        fontSize={0.28}
-        color="#ff8c2a"
-        anchorX="center"
-      >
-        α
-      </Text>
-
-      {/* Beta vector */}
-      <group ref={betaGroupRef} rotation={[0, 0, betaAngle]}>
-        <mesh position={[betaLen * gridR * 0.5, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <cylinderGeometry args={[0.025, 0.025, Math.max(0.01, betaLen * gridR), 8]} />
-          <meshStandardMaterial color="#4cc9f0" emissive="#4cc9f0" emissiveIntensity={3} />
-        </mesh>
-        <mesh position={[betaLen * gridR, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <coneGeometry args={[0.1, 0.25, 12]} />
-          <meshStandardMaterial color="#4cc9f0" emissive="#4cc9f0" emissiveIntensity={4} />
-        </mesh>
-        <pointLight position={[betaLen * gridR, 0, 0]} intensity={3} distance={2} color="#4cc9f0" />
-      </group>
-      <Text
-        position={[Math.cos(betaAngle) * (betaLen * gridR + 0.5), Math.sin(betaAngle) * (betaLen * gridR + 0.5), 0]}
-        fontSize={0.28}
-        color="#4cc9f0"
-        anchorX="center"
-      >
-        β
-      </Text>
-
-      {/* Axis labels */}
-      <Text position={[gridR * 1.4, 0, 0]} fontSize={0.18} color="#4cc9f0" fillOpacity={0.5} anchorX="center">Re</Text>
-      <Text position={[-gridR * 1.4, 0, 0]} fontSize={0.18} color="#4cc9f0" fillOpacity={0.5} anchorX="center">-Re</Text>
-      <Text position={[0, gridR * 1.4, 0]} fontSize={0.18} color="#4cc9f0" fillOpacity={0.5} anchorX="center">Im</Text>
-      <Text position={[0, -gridR * 1.4, 0]} fontSize={0.18} color="#4cc9f0" fillOpacity={0.5} anchorX="center">-Im</Text>
-    </group>
-  );
-}
-
 function ControlButton({ label, onClick, variant = "default" }: { label: string; onClick: () => void; variant?: "default" | "accent" | "outline" }) {
   const baseStyles = "px-10 py-3 rounded-2xl font-mono text-[10px] tracking-[0.4em] uppercase transition-all duration-300 active:scale-95 flex items-center justify-center min-w-[140px]";
   const variants = {
@@ -956,170 +672,35 @@ function StateVector({ target, hovered }: { target: THREE.Vector3; hovered: bool
 }
 
 function BlochSphere({ state }: { state: QubitState }) {
-  const pointsRef = useRef<THREE.Points>(null);
-  const materialRef = useRef<any>(null);
-  const shellRef = useRef<THREE.Mesh>(null);
-  const [hovered, setHovered] = useState(false);
-  const impactRef = useRef(0);
-
-  // Trigger impact on state change
-  useEffect(() => {
-    impactRef.current = 1.0;
-  }, [state]);
-
-  const targetVector = useMemo(() => {
-    const alphaAbs = abs(state.alpha) as number;
-    const theta = 2 * Math.acos(Math.min(1, alphaAbs));
-    const phi = state.beta.arg();
-
-    const x = Math.sin(theta) * Math.cos(phi);
-    const y = Math.sin(theta) * Math.sin(phi);
-    const z = Math.cos(theta);
-
-    return new THREE.Vector3(x, z, y);
-  }, [state]);
-
-  useFrame(({ clock, mouse }) => {
-    const t = clock.getElapsedTime();
-    if (materialRef.current) {
-      materialRef.current.uniforms.uTime.value = t;
-      materialRef.current.uniforms.uMouse.value.set(mouse.x, mouse.y);
-      materialRef.current.uniforms.uHover.value = THREE.MathUtils.lerp(
-        materialRef.current.uniforms.uHover.value,
-        hovered ? 1.0 : 0.0,
-        0.1
-      );
-      materialRef.current.uniforms.uImpact.value = impactRef.current;
-      impactRef.current = THREE.MathUtils.lerp(impactRef.current, 0.0, 0.05);
-    }
-    if (pointsRef.current) {
-      pointsRef.current.rotation.y += 0.0005;
-    }
-    if (shellRef.current) {
-      shellRef.current.rotation.y -= 0.001;
-    }
-  });
-
-  const particles = useMemo(() => {
-    const count = 4000;
-    const positions = new Float32Array(count * 3);
-
-    for (let i = 0; i < count; i++) {
-      const phi = Math.acos(-1 + (2 * i) / count);
-      const theta = Math.sqrt(count * Math.PI) * phi;
-
-      const r = 1.6 + (Math.random() - 0.5) * 0.15; // Thicker shell
-      positions[i * 3] = r * Math.cos(theta) * Math.sin(phi);
-      positions[i * 3 + 1] = r * Math.sin(theta) * Math.sin(phi);
-      positions[i * 3 + 2] = r * Math.cos(phi);
-    }
-    return positions;
-  }, []);
+  const alphaAbs = abs(state.alpha) as number;
+  const theta = 2 * Math.acos(Math.min(1, alphaAbs));
+  const phi = state.beta.im !== 0 || state.beta.re !== 0 ? Math.atan2(state.beta.im, state.beta.re) : 0;
+  
+  const x = Math.sin(theta) * Math.cos(phi);
+  const z = Math.cos(theta);
+  
+  const cx = 150;
+  const cy = 150;
+  const r = 120;
+  
+  const arrowX = cx + x * r;
+  const arrowY = cy - z * r;
 
   return (
-    <group
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
-    >
-      {/* Particle Sphere */}
-      <points ref={pointsRef}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={particles.length / 3}
-            array={particles}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <blochParticleMaterial ref={materialRef} />
-      </points>
-
-      {/* Glowing Core */}
-      <Sphere args={[0.12, 24, 24]}>
-        <meshStandardMaterial
-          color={hovered ? "#4cc9f0" : "#ff8c2a"}
-          emissive={hovered ? "#4cc9f0" : "#ff8c2a"}
-          emissiveIntensity={hovered ? 12 : 6}
-        />
-        <pointLight intensity={hovered ? 20 : 10} distance={5} color="#4cc9f0" />
-      </Sphere>
-
-      {/* Interactive Glass Shell */}
-      <Sphere ref={shellRef} args={[1.62, 32, 32]}>
-        <meshPhysicalMaterial
-          color={hovered ? "#4cc9f0" : "#ff8c2a"}
-          transparent
-          opacity={hovered ? 0.25 : 0.1}
-          wireframe={!hovered}
-          wireframeLinewidth={1}
-          roughness={0}
-          metalness={1}
-          transmission={0.6}
-          thickness={2}
-        />
-      </Sphere>
-
-      {/* Internal Grid for better sphere definition */}
-      <Sphere args={[1.58, 24, 24]}>
-        <meshBasicMaterial
-          color="#00e5ff"
-          transparent
-          opacity={0.04}
-          wireframe
-        />
-      </Sphere>
-
-      {/* Proper Bloch sphere structure */}
-      <group>
-        {/* Vertical Z axis */}
-        <mesh>
-          <cylinderGeometry args={[0.008, 0.008, 5.2, 8]} />
-          <meshBasicMaterial color="#00e5ff" transparent opacity={0.5} />
-        </mesh>
-
-        {/* Horizontal X axis */}
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.008, 0.008, 5.2, 8]} />
-          <meshBasicMaterial color="#ffd700" transparent opacity={0.3} />
-        </mesh>
-
-        {/* Horizontal Y axis */}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.008, 0.008, 5.2, 8]} />
-          <meshBasicMaterial color="#ffd700" transparent opacity={0.3} />
-        </mesh>
-
-        {/* Equator ring */}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[1.62, 0.008, 8, 80]} />
-          <meshBasicMaterial color="#00e5ff" transparent opacity={0.4} />
-        </mesh>
-
-        {/* Meridian ring XZ */}
-        <mesh rotation={[0, 0, 0]}>
-          <torusGeometry args={[1.62, 0.008, 8, 80]} />
-          <meshBasicMaterial color="#00e5ff" transparent opacity={0.2} />
-        </mesh>
-
-        {/* Meridian ring YZ */}
-        <mesh rotation={[0, Math.PI / 2, 0]}>
-          <torusGeometry args={[1.62, 0.008, 8, 80]} />
-          <meshBasicMaterial color="#00e5ff" transparent opacity={0.2} />
-        </mesh>
-
-        {/* Axis labels — properly positioned outside sphere */}
-        <Text position={[0, 2.4, 0]} fontSize={0.2} color="#00e5ff" outlineWidth={0.015} outlineColor="#000">|0⟩</Text>
-        <Text position={[0, -2.4, 0]} fontSize={0.2} color="#00e5ff" outlineWidth={0.015} outlineColor="#000">|1⟩</Text>
-        <Text position={[2.4, 0, 0]} fontSize={0.18} color="#ffd700" outlineWidth={0.015} outlineColor="#000">+X</Text>
-        <Text position={[-2.4, 0, 0]} fontSize={0.18} color="#ffd700" outlineWidth={0.015} outlineColor="#000">-X</Text>
-        <Text position={[0, 0, 2.4]} fontSize={0.18} color="#ffd700" outlineWidth={0.015} outlineColor="#000">+Y</Text>
-        <Text position={[0, 0, -2.4]} fontSize={0.18} color="#ffd700" outlineWidth={0.015} outlineColor="#000">-Y</Text>
-      </group>
-
-      {/* State Vector — arrow from center to state point */}
-      <StateVector target={targetVector} hovered={hovered} />
-
-    </group>
+    <div className="w-full h-full flex items-center justify-center">
+      <svg width="300" height="300" viewBox="0 0 300 300">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#00e5ff" strokeWidth="1" opacity="0.3"/>
+        <line x1={cx} y1={cy-r-20} x2={cx} y2={cy+r+20} stroke="#00e5ff" strokeWidth="0.5" opacity="0.4"/>
+        <line x1={cx-r-20} y1={cy} x2={cx+r+20} y2={cy} stroke="#ffd700" strokeWidth="0.5" opacity="0.4"/>
+        <text x={cx} y={cy-r-25} fill="#00e5ff" fontSize="12" textAnchor="middle" opacity="0.7">|0⟩</text>
+        <text x={cx} y={cy+r+35} fill="#00e5ff" fontSize="12" textAnchor="middle" opacity="0.7">|1⟩</text>
+        <text x={cx+r+25} y={cy+4} fill="#ffd700" fontSize="10" textAnchor="middle" opacity="0.7">+X</text>
+        <text x={cx-r-25} y={cy+4} fill="#ffd700" fontSize="10" textAnchor="middle" opacity="0.7">-X</text>
+        <line x1={cx} y1={cy} x2={arrowX} y2={arrowY} stroke="#ffd700" strokeWidth="2.5" strokeLinecap="round"/>
+        <circle cx={arrowX} cy={arrowY} r="6" fill="#ffd700" opacity="0.9"/>
+        <circle cx={cx} cy={cy} r="5" fill="#ff8c2a"/>
+      </svg>
+    </div>
   );
 }
 
