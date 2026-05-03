@@ -4,8 +4,8 @@
  */
 
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useRef, useState, useMemo } from "react";
-import { complex, multiply, matrix, abs, pow, arg } from "mathjs";
+import { useEffect, useRef, useState } from "react";
+import { complex, multiply, abs, pow, arg } from "mathjs";
 import { MessageSquare, X, Send, Loader2, Zap, Info } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 import Markdown from "react-markdown";
@@ -16,9 +16,9 @@ type SimulationMode = "learning" | "explore";
 type VisualizationMode = "bloch" | "wave" | "plane";
 
 interface QubitState {
-  alpha: any; // mathjs complex
-  beta: any;  // mathjs complex
-  label?: string; // Step label for timeline
+  alpha: any;
+  beta: any;
+  label?: string;
 }
 
 interface GateInfo {
@@ -59,10 +59,8 @@ function AppContent() {
 
   return (
     <div className="relative min-h-screen bg-bg text-text font-sans selection:bg-primary selection:text-black flex flex-col overflow-hidden">
-      {/* Background Animation Layer */}
       <div className="fixed inset-0 z-0 pointer-events-none opacity-40 bg-black" />
 
-      {/* Navbar (Top) */}
       <nav className="absolute top-0 left-0 right-0 z-50 flex justify-between items-center px-8 md:px-16 py-8 bg-transparent">
         <div className="flex items-center space-x-16">
           <motion.div
@@ -77,13 +75,13 @@ function AppContent() {
               onClick={() => setCurrentPage("simulator")}
               className={`transition-all hover:text-primary relative group ${currentPage === "simulator" ? "text-primary text-glow-orange" : "text-text/80"}`}
             >
-              SIMULATOR 
+              SIMULATOR
             </button>
             <button
               onClick={() => setCurrentPage("about")}
               className={`transition-all hover:text-primary relative group ${currentPage === "about" ? "text-primary text-glow-orange" : "text-text/80"}`}
             >
-              ABOUTING
+              ABOUT
             </button>
           </div>
         </div>
@@ -103,8 +101,6 @@ function AppContent() {
           {currentPage === "simulator" && <SimulatorPage key="simulator" />}
         </AnimatePresence>
       </main>
-
-
     </div>
   );
 }
@@ -118,7 +114,6 @@ function HomePage({ onNavigate }: { onNavigate: () => void }) {
       transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
       className="relative w-full h-screen overflow-hidden"
     >
-      {/* VIDEO BACKGROUND — full bleed */}
       <video
         autoPlay
         muted
@@ -130,10 +125,7 @@ function HomePage({ onNavigate }: { onNavigate: () => void }) {
         <source src="/bg-video.mp4" type="video/mp4" />
       </video>
 
-      {/* CONTENT — title top-left, specs bottom-right */}
       <div className="absolute inset-0 z-10 flex flex-col justify-between px-8 md:px-16 pt-24 pb-10">
-
-        {/* TOP LEFT — title block */}
         <motion.div
           initial={{ opacity: 0, x: -30 }}
           animate={{ opacity: 1, x: 0 }}
@@ -141,14 +133,13 @@ function HomePage({ onNavigate }: { onNavigate: () => void }) {
           className="flex flex-col items-start max-w-xl"
         >
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-sans font-black tracking-tighter uppercase leading-[0.85] text-primary drop-shadow-[0_0_30px_rgba(255,140,42,0.3)]">
-            QUANTUM <br />VISUAL<br />SIMULATOR
+            QUANTUM //<br />VISUAL<br />SIMULATOR
           </h1>
           <p className="text-sm font-light leading-relaxed tracking-wide text-text/70 mt-8 max-w-sm">
             An interactive system to visualize qubit evolution using Bloch sphere, quantum gates, and real-time probability updates.
           </p>
         </motion.div>
 
-        {/* BOTTOM — specs card bottom-right */}
         <div className="flex justify-end">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -162,14 +153,13 @@ function HomePage({ onNavigate }: { onNavigate: () => void }) {
               </h3>
               <div className="space-y-0">
                 <SpecRow label="Core" value="Qubit State Engine (α, β complex amplitudes)" onClick={onNavigate} />
-                <SpecRow label="Visualization" value="Bloch Sphere (Three.js)" onClick={onNavigate} />
+                <SpecRow label="Visualization" value="Bloch Sphere · Wave · Phase Plane" onClick={onNavigate} />
                 <SpecRow label="Logic" value="Quantum Gates (X, H, Z)" onClick={onNavigate} />
                 <SpecRow label="Output" value="Probability & Measurement" onClick={onNavigate} />
               </div>
             </div>
           </motion.div>
         </div>
-
       </div>
     </motion.div>
   );
@@ -210,7 +200,6 @@ function ProbabilityBar({ label, value, color = "orange" }: { label: string; val
           animate={{ width: `${percentage}%` }}
           transition={{ duration: 0.8, ease: [0.4, 0, 0.2, 1] }}
         />
-        {/* Animated pulse effect */}
         <motion.div
           className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
           animate={{ x: ["-100%", "200%"] }}
@@ -221,13 +210,122 @@ function ProbabilityBar({ label, value, color = "orange" }: { label: string; val
   );
 }
 
+function WaveVisualization({ state }: { state: QubitState }) {
+  const prob0 = pow(abs(state.alpha), 2) as number;
+  const prob1 = pow(abs(state.beta), 2) as number;
+  const maxH = 180;
+  const h0 = Math.max(10, prob0 * maxH);
+  const h1 = Math.max(10, prob1 * maxH);
+  const baseY = 240;
+
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <svg width="300" height="300" viewBox="0 0 300 300">
+        <text x="150" y="20" fill="#ffffff" fontSize="10" textAnchor="middle" opacity="0.4">PROBABILITY AMPLITUDE</text>
+        <line x1="40" y1={baseY} x2="260" y2={baseY} stroke="#ffffff" strokeWidth="0.5" opacity="0.2"/>
+        
+        {/* Bar |0⟩ */}
+        <rect x="75" y={baseY - h0} width="55" height={h0} fill="#ff8c2a" opacity="0.85" rx="4"/>
+        <rect x="75" y={baseY - h0} width="55" height="4" fill="#ffb870" opacity="0.9" rx="2"/>
+        <text x="102" y={baseY - h0 - 10} fill="#ff8c2a" fontSize="12" textAnchor="middle" fontWeight="bold">|0⟩</text>
+        <text x="102" y={baseY + 16} fill="#ff8c2a" fontSize="10" textAnchor="middle">{(prob0 * 100).toFixed(1)}%</text>
+
+        {/* Bar |1⟩ */}
+        <rect x="170" y={baseY - h1} width="55" height={h1} fill="#4cc9f0" opacity="0.85" rx="4"/>
+        <rect x="170" y={baseY - h1} width="55" height="4" fill="#a8e8ff" opacity="0.9" rx="2"/>
+        <text x="197" y={baseY - h1 - 10} fill="#4cc9f0" fontSize="12" textAnchor="middle" fontWeight="bold">|1⟩</text>
+        <text x="197" y={baseY + 16} fill="#4cc9f0" fontSize="10" textAnchor="middle">{(prob1 * 100).toFixed(1)}%</text>
+      </svg>
+    </div>
+  );
+}
+
+function PlaneVisualization({ state }: { state: QubitState }) {
+  const alphaLen = abs(state.alpha) as number;
+  const betaLen = abs(state.beta) as number;
+  const alphaAngle = arg(state.alpha) as number;
+  const betaAngle = arg(state.beta) as number;
+  const cx = 150, cy = 150, r = 100;
+
+  const ax = cx + alphaLen * r * Math.cos(alphaAngle);
+  const ay = cy - alphaLen * r * Math.sin(alphaAngle);
+  const bx = cx + betaLen * r * Math.cos(betaAngle);
+  const by = cy - betaLen * r * Math.sin(betaAngle);
+
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <svg width="300" height="300" viewBox="0 0 300 300">
+        {/* Unit circle */}
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#ffffff" strokeWidth="0.5" opacity="0.15"/>
+        <circle cx={cx} cy={cy} r={r * 0.5} fill="none" stroke="#ffffff" strokeWidth="0.5" opacity="0.08"/>
+
+        {/* Axes */}
+        <line x1={cx - r - 20} y1={cy} x2={cx + r + 20} y2={cy} stroke="#4cc9f0" strokeWidth="0.5" opacity="0.3"/>
+        <line x1={cx} y1={cy - r - 20} x2={cx} y2={cy + r + 20} stroke="#4cc9f0" strokeWidth="0.5" opacity="0.3"/>
+
+        {/* Axis labels */}
+        <text x={cx + r + 24} y={cy + 4} fill="#4cc9f0" fontSize="9" opacity="0.5">Re</text>
+        <text x={cx - r - 24} y={cy + 4} fill="#4cc9f0" fontSize="9" textAnchor="middle" opacity="0.5">-Re</text>
+        <text x={cx} y={cy - r - 24} fill="#4cc9f0" fontSize="9" textAnchor="middle" opacity="0.5">Im</text>
+        <text x={cx} y={cy + r + 24} fill="#4cc9f0" fontSize="9" textAnchor="middle" opacity="0.5">-Im</text>
+
+        {/* Alpha vector */}
+        <line x1={cx} y1={cy} x2={ax} y2={ay} stroke="#ff8c2a" strokeWidth="2.5" strokeLinecap="round"/>
+        <circle cx={ax} cy={ay} r="6" fill="#ff8c2a" opacity="0.9"/>
+        <text x={ax + 12} y={ay + 4} fill="#ff8c2a" fontSize="16" fontWeight="bold">α</text>
+
+        {/* Beta vector */}
+        <line x1={cx} y1={cy} x2={bx} y2={by} stroke="#4cc9f0" strokeWidth="2.5" strokeLinecap="round"/>
+        <circle cx={bx} cy={by} r="6" fill="#4cc9f0" opacity="0.9"/>
+        <text x={bx + 12} y={by + 4} fill="#4cc9f0" fontSize="16" fontWeight="bold">β</text>
+
+        {/* Center dot */}
+        <circle cx={cx} cy={cy} r="4" fill="#ffffff" opacity="0.5"/>
+      </svg>
+    </div>
+  );
+}
+
+function BlochSphere({ state }: { state: QubitState }) {
+  const alphaAbs = abs(state.alpha) as number;
+  const theta = 2 * Math.acos(Math.min(1, alphaAbs));
+  const phi = state.beta.im !== 0 || state.beta.re !== 0 ? Math.atan2(state.beta.im, state.beta.re) : 0;
+
+  const x = Math.sin(theta) * Math.cos(phi);
+  const z = Math.cos(theta);
+
+  const cx = 150;
+  const cy = 150;
+  const r = 120;
+
+  const arrowX = cx + x * r;
+  const arrowY = cy - z * r;
+
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <svg width="300" height="300" viewBox="0 0 300 300">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#00e5ff" strokeWidth="1" opacity="0.3"/>
+        <ellipse cx={cx} cy={cy} rx={r} ry={r * 0.3} fill="none" stroke="#00e5ff" strokeWidth="0.5" opacity="0.2"/>
+        <line x1={cx} y1={cy - r - 20} x2={cx} y2={cy + r + 20} stroke="#00e5ff" strokeWidth="0.5" opacity="0.4"/>
+        <line x1={cx - r - 20} y1={cy} x2={cx + r + 20} y2={cy} stroke="#ffd700" strokeWidth="0.5" opacity="0.4"/>
+        <text x={cx} y={cy - r - 25} fill="#00e5ff" fontSize="12" textAnchor="middle" opacity="0.7">|0⟩</text>
+        <text x={cx} y={cy + r + 35} fill="#00e5ff" fontSize="12" textAnchor="middle" opacity="0.7">|1⟩</text>
+        <text x={cx + r + 25} y={cy + 4} fill="#ffd700" fontSize="10" textAnchor="middle" opacity="0.7">+X</text>
+        <text x={cx - r - 25} y={cy + 4} fill="#ffd700" fontSize="10" textAnchor="middle" opacity="0.7">-X</text>
+        <line x1={cx} y1={cy} x2={arrowX} y2={arrowY} stroke="#ffd700" strokeWidth="2.5" strokeLinecap="round"/>
+        <circle cx={arrowX} cy={arrowY} r="7" fill="#ffd700" opacity="0.9"/>
+        <circle cx={arrowX} cy={arrowY} r="3" fill="#ffffff" opacity="0.8"/>
+        <circle cx={cx} cy={cy} r="5" fill="#ff8c2a"/>
+      </svg>
+    </div>
+  );
+}
+
 function SimulatorPage() {
   const [state, setState] = useState<QubitState>(INITIAL_STATE);
   const [history, setHistory] = useState<string[]>([]);
   const [circuit, setCircuit] = useState<string[]>([]);
   const [narration, setNarration] = useState<string>("System initialized. Qubit is in state |0⟩.");
-
-  // New States for Learning Product
   const [mode, setMode] = useState<SimulationMode>("explore");
   const [vizMode, setVizMode] = useState<VisualizationMode>("bloch");
   const [evolution, setEvolution] = useState<QubitState[]>([INITIAL_STATE]);
@@ -273,7 +371,6 @@ function SimulatorPage() {
     let count0 = 0;
     let count1 = 0;
 
-    // Animate the histogram update
     for (let i = 0; i < numShots; i++) {
       if (Math.random() < prob0) count0++;
       else count1++;
@@ -336,7 +433,6 @@ function SimulatorPage() {
       exit={{ opacity: 0 }}
       className="flex-grow flex flex-col h-full overflow-hidden relative"
     >
-      {/* Top Controls: Mode & Visualization Toggle */}
       <div className="absolute top-24 left-1/2 -translate-x-1/2 z-50 flex items-center space-x-6 glass-panel px-6 py-3 rounded-full neon-border-cyan">
         <div className="flex bg-white/5 rounded-full p-1">
           <button
@@ -360,18 +456,15 @@ function SimulatorPage() {
         </div>
       </div>
 
-      {/* Main Grid Layout */}
       <div className="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-px bg-primary/5 overflow-hidden pt-20">
 
-        {/* LEFT PANEL — STATE + EVOLUTION */}
+        {/* LEFT PANEL */}
         <div className="lg:col-span-3 glass-panel m-4 rounded-3xl p-6 flex flex-col space-y-8 neon-border-orange overflow-y-auto">
           <div className="space-y-6">
             <div className="flex items-center space-x-3">
               <Zap size={16} className="text-primary animate-pulse" />
               <h3 className="text-[11px] tracking-[0.5em] font-mono uppercase text-primary font-black">STATE EVOLUTION</h3>
             </div>
-
-            {/* Evolution Timeline */}
             <div className="space-y-4">
               {evolution.map((step, i) => (
                 <motion.div
@@ -379,8 +472,8 @@ function SimulatorPage() {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   className={`p-4 rounded-2xl border transition-all duration-500 ${i === evolution.length - 1
-                      ? "bg-primary/10 border-primary/40 shadow-[0_0_15px_rgba(255,140,42,0.1)]"
-                      : "bg-white/[0.02] border-white/[0.05] opacity-40"
+                    ? "bg-primary/10 border-primary/40 shadow-[0_0_15px_rgba(255,140,42,0.1)]"
+                    : "bg-white/[0.02] border-white/[0.05] opacity-40"
                     }`}
                 >
                   <div className="flex justify-between items-center mb-2">
@@ -408,11 +501,10 @@ function SimulatorPage() {
           </div>
         </div>
 
-        {/* CENTER — VISUALIZATION */}
+        {/* CENTER VISUALIZATION */}
         <div className="lg:col-span-6 relative flex flex-col items-center justify-center overflow-hidden min-h-[600px]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(0,229,255,0.04),transparent_70%)] pointer-events-none" />
 
-          {/* HTML overlay labels — always readable, no 3D positioning issues */}
           {vizMode === "bloch" && (
             <div className="absolute inset-0 pointer-events-none z-10">
               <div className="absolute top-4 left-1/2 -translate-x-1/2 text-center">
@@ -427,11 +519,24 @@ function SimulatorPage() {
             </div>
           )}
 
+          {vizMode === "wave" && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 text-center pointer-events-none z-10">
+              <div className="text-[10px] font-mono tracking-[0.3em] uppercase text-cyan-400/60">WAVE — PROBABILITY BARS</div>
+            </div>
+          )}
+
+          {vizMode === "plane" && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 text-center pointer-events-none z-10">
+              <div className="text-[10px] font-mono tracking-[0.3em] uppercase text-cyan-400/60">PHASE PLANE — COMPLEX AMPLITUDES</div>
+            </div>
+          )}
+
           <div className="w-full h-full flex items-center justify-center">
-            <BlochSphere state={state} />
+            {vizMode === "bloch" && <BlochSphere state={state} />}
+            {vizMode === "wave" && <WaveVisualization state={state} />}
+            {vizMode === "plane" && <PlaneVisualization state={state} />}
           </div>
 
-          {/* Preset Buttons Overlay */}
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex space-x-4">
             <PresetButton label="SUPERPOSITION" onClick={() => applyPreset("superposition")} />
             <PresetButton label="STATE FLIP" onClick={() => applyPreset("flip")} />
@@ -439,10 +544,8 @@ function SimulatorPage() {
           </div>
         </div>
 
-        {/* RIGHT PANEL — MEASUREMENT + EXPLANATION */}
+        {/* RIGHT PANEL */}
         <div className="lg:col-span-3 glass-panel m-4 rounded-3xl p-6 flex flex-col space-y-8 neon-border-cyan overflow-y-auto">
-
-          {/* Gate Toolbox */}
           <div className="space-y-6">
             <h3 className="text-[11px] tracking-[0.5em] font-mono uppercase text-secondary font-black">GATE TOOLBOX</h3>
             <div className="grid grid-cols-3 gap-3">
@@ -458,7 +561,6 @@ function SimulatorPage() {
             </div>
           </div>
 
-          {/* Gate Explanation Panel */}
           <AnimatePresence mode="wait">
             {selectedGate ? (
               <motion.div
@@ -486,7 +588,6 @@ function SimulatorPage() {
             )}
           </AnimatePresence>
 
-          {/* Measurement Simulation (Shots) */}
           <div className="space-y-6">
             <h3 className="text-[11px] tracking-[0.5em] font-mono uppercase text-secondary font-black">MEASUREMENT SHOTS</h3>
             <div className="grid grid-cols-3 gap-3">
@@ -508,15 +609,12 @@ function SimulatorPage() {
             >
               SINGLE MEASURE
             </button>
-
-            {/* Histogram */}
             <div className="space-y-6 pt-4">
               <HistogramBar label="|0⟩" count={histogram["0"]} total={shots} color="orange" />
               <HistogramBar label="|1⟩" count={histogram["1"]} total={shots} color="cyan" />
             </div>
           </div>
 
-          {/* History */}
           <div className="flex-grow flex flex-col space-y-6 overflow-hidden">
             <h3 className="text-[11px] tracking-[0.5em] font-mono uppercase text-secondary font-black">HISTORY</h3>
             <div className="flex-grow overflow-y-auto space-y-3 pr-2 scrollbar-thin">
@@ -536,7 +634,6 @@ function SimulatorPage() {
             </div>
           </div>
 
-          {/* System Actions */}
           <div className="pt-4 border-t border-white/5">
             <button
               onClick={reset}
@@ -596,114 +693,6 @@ function PresetButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 
-function ControlButton({ label, onClick, variant = "default" }: { label: string; onClick: () => void; variant?: "default" | "accent" | "outline" }) {
-  const baseStyles = "px-10 py-3 rounded-2xl font-mono text-[10px] tracking-[0.4em] uppercase transition-all duration-300 active:scale-95 flex items-center justify-center min-w-[140px]";
-  const variants = {
-    default: "bg-white/[0.03] border border-white/[0.05] text-primary/60 hover:bg-primary/10 hover:text-primary hover:neon-border-orange",
-    accent: "bg-primary text-bg font-black shadow-[0_0_30px_rgba(255,140,42,0.3)] hover:shadow-[0_0_50px_rgba(255,140,42,0.5)] hover:scale-105",
-    outline: "border border-secondary/20 text-secondary/60 hover:text-secondary hover:neon-border-cyan hover:bg-secondary/5",
-  };
-
-  return (
-    <motion.button
-      whileHover={{ y: -2 }}
-      onClick={onClick}
-      className={`${baseStyles} ${variants[variant]}`}
-    >
-      {label}
-    </motion.button>
-  );
-}
-
-function StateVector({ target, hovered }: { target: THREE.Vector3; hovered: boolean }) {
-  const groupRef = useRef<THREE.Group>(null);
-
-  useFrame(() => {
-    if (!groupRef.current) return;
-    const dir = target.clone().normalize();
-    const up = new THREE.Vector3(0, 1, 0);
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(up, dir);
-    groupRef.current.quaternion.slerp(quaternion, 0.08);
-  });
-
-  const color = hovered ? "#4cc9f0" : "#ffd700";
-  const emissiveIntensity = hovered ? 18 : 10;
-  const length = 1.55;
-
-  return (
-    <group ref={groupRef}>
-      {/* Shaft */}
-      <mesh position={[0, length / 2, 0]}>
-        <cylinderGeometry args={[0.025, 0.025, length, 12]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={emissiveIntensity}
-          transparent
-          opacity={0.95}
-        />
-      </mesh>
-      {/* Arrowhead cone */}
-      <mesh position={[0, length + 0.12, 0]}>
-        <coneGeometry args={[0.08, 0.24, 16]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={emissiveIntensity + 5}
-        />
-      </mesh>
-      {/* Glowing tip sphere */}
-      <mesh position={[0, length + 0.08, 0]}>
-        <sphereGeometry args={[0.1, 24, 24]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={color}
-          emissiveIntensity={emissiveIntensity + 8}
-        />
-      </mesh>
-      <pointLight
-        intensity={hovered ? 8 : 4}
-        distance={2.5}
-        color={color}
-        position={[0, length, 0]}
-      />
-    </group>
-  );
-}
-
-function BlochSphere({ state }: { state: QubitState }) {
-  const alphaAbs = abs(state.alpha) as number;
-  const theta = 2 * Math.acos(Math.min(1, alphaAbs));
-  const phi = state.beta.im !== 0 || state.beta.re !== 0 ? Math.atan2(state.beta.im, state.beta.re) : 0;
-  
-  const x = Math.sin(theta) * Math.cos(phi);
-  const z = Math.cos(theta);
-  
-  const cx = 150;
-  const cy = 150;
-  const r = 120;
-  
-  const arrowX = cx + x * r;
-  const arrowY = cy - z * r;
-
-  return (
-    <div className="w-full h-full flex items-center justify-center">
-      <svg width="300" height="300" viewBox="0 0 300 300">
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="#00e5ff" strokeWidth="1" opacity="0.3"/>
-        <line x1={cx} y1={cy-r-20} x2={cx} y2={cy+r+20} stroke="#00e5ff" strokeWidth="0.5" opacity="0.4"/>
-        <line x1={cx-r-20} y1={cy} x2={cx+r+20} y2={cy} stroke="#ffd700" strokeWidth="0.5" opacity="0.4"/>
-        <text x={cx} y={cy-r-25} fill="#00e5ff" fontSize="12" textAnchor="middle" opacity="0.7">|0⟩</text>
-        <text x={cx} y={cy+r+35} fill="#00e5ff" fontSize="12" textAnchor="middle" opacity="0.7">|1⟩</text>
-        <text x={cx+r+25} y={cy+4} fill="#ffd700" fontSize="10" textAnchor="middle" opacity="0.7">+X</text>
-        <text x={cx-r-25} y={cy+4} fill="#ffd700" fontSize="10" textAnchor="middle" opacity="0.7">-X</text>
-        <line x1={cx} y1={cy} x2={arrowX} y2={arrowY} stroke="#ffd700" strokeWidth="2.5" strokeLinecap="round"/>
-        <circle cx={arrowX} cy={arrowY} r="6" fill="#ffd700" opacity="0.9"/>
-        <circle cx={cx} cy={cy} r="5" fill="#ff8c2a"/>
-      </svg>
-    </div>
-  );
-}
-
 function AboutPage() {
   return (
     <motion.div
@@ -713,7 +702,6 @@ function AboutPage() {
       transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
       className="relative w-full h-screen overflow-hidden"
     >
-      {/* Video background */}
       <video
         autoPlay
         muted
@@ -726,10 +714,7 @@ function AboutPage() {
       </video>
       <div className="absolute inset-0 bg-black/50" />
 
-      {/* Single screen content */}
       <div className="relative z-10 h-full flex flex-col justify-between px-8 md:px-16 pt-24 pb-10">
-
-        {/* TOP — title + description */}
         <div className="flex items-start justify-between gap-16">
           <div className="max-w-xl">
             <h1 className="text-4xl md:text-5xl font-sans font-black tracking-tighter uppercase text-primary text-glow-orange mb-4">
@@ -739,8 +724,6 @@ function AboutPage() {
               A web-based interactive simulator that visualizes qubit evolution using Bloch sphere representation, quantum gates, and real-time probability updates. Designed to make abstract quantum concepts intuitive and accessible.
             </p>
           </div>
-
-          {/* TOP RIGHT — strategic value */}
           <div className="max-w-sm flex-shrink-0">
             <h3 className="text-[10px] tracking-[0.3em] font-mono uppercase text-primary font-black mb-3">
               [STRATEGIC VALUE]
@@ -751,10 +734,7 @@ function AboutPage() {
           </div>
         </div>
 
-        {/* MIDDLE — physics accurate + metrics side by side */}
         <div className="flex items-end justify-between gap-16">
-
-          {/* LEFT — headline + description */}
           <div className="max-w-sm">
             <span className="text-2xl md:text-3xl font-sans font-bold tracking-tighter uppercase text-secondary text-glow-cyan block mb-3">
               Physics-Accurate Simulation
@@ -763,8 +743,6 @@ function AboutPage() {
               Complex amplitude qubit state engine with real-time gate transformations and Born rule measurement statistics.
             </p>
           </div>
-
-          {/* RIGHT — metrics grid */}
           <div className="flex-shrink-0">
             <h3 className="text-[12px] tracking-[0.3em] font-mono uppercase text-secondary/80 mb-6">
               [ADVANCED DATA METRICS]
@@ -776,27 +754,9 @@ function AboutPage() {
               <MetricItem label="Algorithms" value="3 modes" progress={75} />
             </div>
           </div>
-
         </div>
-
       </div>
     </motion.div>
-  );
-}
-
-function ProgressBar({ progress }: { progress: number }) {
-  return (
-    <div className="h-4 w-full bg-secondary/5 rounded-sm overflow-hidden flex space-x-[2px]">
-      {Array.from({ length: 12 }).map((_, i) => (
-        <motion.div
-          key={i}
-          className="h-full flex-grow bg-secondary"
-          initial={{ opacity: 0.1 }}
-          animate={{ opacity: (i / 12) * 100 < progress ? 1 : 0.1 }}
-          transition={{ delay: i * 0.05 }}
-        />
-      ))}
-    </div>
   );
 }
 
@@ -850,7 +810,7 @@ function Chatbot({ state, history }: { state: QubitState; history: string[] }) {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
       const model = ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-2.0-flash",
         contents: [
           {
             role: "user",
@@ -863,7 +823,7 @@ function Chatbot({ state, history }: { state: QubitState; history: string[] }) {
               
               User Question: ${userMessage}
               
-              Provide a concise, insightful, and encouraging response. Explain concepts like Bloch sphere, gates (X, H, Z), and measurement if relevant to the current state or the user's question.`
+              Provide a concise, insightful, and encouraging response.`
             }]
           }
         ],
@@ -874,7 +834,6 @@ function Chatbot({ state, history }: { state: QubitState; history: string[] }) {
 
       const response = await model;
       const aiResponse = response.text || "I'm sorry, I couldn't process that. Quantum mechanics is tricky!";
-
       setMessages(prev => [...prev, { role: "ai", content: aiResponse }]);
     } catch (error) {
       console.error("Gemini Error:", error);
@@ -894,7 +853,6 @@ function Chatbot({ state, history }: { state: QubitState; history: string[] }) {
             exit={{ opacity: 0, scale: 0.9, y: 20, filter: "blur(10px)" }}
             className="absolute bottom-20 right-0 w-[350px] h-[500px] bg-black/40 backdrop-blur-2xl border border-cyan-400/30 rounded-2xl flex flex-col overflow-hidden shadow-[0_0_40px_rgba(34,211,238,0.15)]"
           >
-            {/* Header */}
             <div className="p-4 border-b border-cyan-400/10 flex justify-between items-center bg-cyan-400/5">
               <div className="flex items-center space-x-3">
                 <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,1)]" />
@@ -905,7 +863,6 @@ function Chatbot({ state, history }: { state: QubitState; history: string[] }) {
               </button>
             </div>
 
-            {/* Messages */}
             <div ref={scrollRef} className="flex-grow overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-cyan-400/10">
               {messages.map((msg, i) => (
                 <motion.div
@@ -915,8 +872,8 @@ function Chatbot({ state, history }: { state: QubitState; history: string[] }) {
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div className={`max-w-[85%] p-3 rounded-xl text-xs leading-relaxed ${msg.role === "user"
-                      ? "bg-cyan-400/10 border border-cyan-400/20 text-cyan-100 rounded-tr-none"
-                      : "bg-white/5 border border-white/10 text-primary rounded-tl-none"
+                    ? "bg-cyan-400/10 border border-cyan-400/20 text-cyan-100 rounded-tr-none"
+                    : "bg-white/5 border border-white/10 text-primary rounded-tl-none"
                     }`}>
                     <div className="markdown-body">
                       <Markdown>{msg.content}</Markdown>
@@ -933,7 +890,6 @@ function Chatbot({ state, history }: { state: QubitState; history: string[] }) {
               )}
             </div>
 
-            {/* Input */}
             <div className="p-4 border-t border-cyan-400/10 bg-black/20">
               <div className="relative">
                 <input
@@ -957,14 +913,13 @@ function Chatbot({ state, history }: { state: QubitState; history: string[] }) {
         )}
       </AnimatePresence>
 
-      {/* Toggle Button */}
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(!isOpen)}
         className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-500 ${isOpen
-            ? "bg-cyan-400 text-black rotate-90 shadow-[0_0_30px_rgba(34,211,238,0.6)]"
-            : "bg-black border border-cyan-400/30 text-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)] hover:border-cyan-400/60"
+          ? "bg-cyan-400 text-black rotate-90 shadow-[0_0_30px_rgba(34,211,238,0.6)]"
+          : "bg-black border border-cyan-400/30 text-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.2)] hover:border-cyan-400/60"
           }`}
       >
         {isOpen ? <X size={24} /> : <MessageSquare size={24} />}
